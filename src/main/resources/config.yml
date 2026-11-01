@@ -26,10 +26,6 @@ override-keep-inventory: false
 # if you enable this, xp levels will be taken away and stored in the grave on death, even if third party plugin tries to keep them
 override-keep-level: false
 
-# how high should grave holograms spawn?
-# only applies to new graves
-hologram-height: 0.5
-
 # how high should the player head be?
 # in some versions on some clients may see the heads glitched in the ground
 # use this option OR viaversion's hologram-y setting to correct it
@@ -44,6 +40,29 @@ rotate-head-360: true
 auto-rotation:
   enabled: false
   speed: 10.0
+
+# requires the ModelEngine plugin (only takes effect if it's installed)
+# renders the grave with a custom ModelEngine model instead of the floating head
+# only applies to new graves
+model-engine:
+  enabled: true
+  # the model id, as imported into ModelEngine
+  model-id: graves
+  # offset of the model from the death location (in blocks)
+  offset:
+    x: 0.0
+    y: 0.5
+    z: 0.0
+  # hide the floating player head/armor stand
+  # turn this off if your model doesn't already include a head/skin of its own
+  hide-vanilla-head: true
+  # animation to play once the model spawns (leave empty to disable)
+  idle-animation: idle
+  # makes the model glow (like a glowing entity)
+  glow:
+    enabled: true
+    # format (hexadecimal): RRGGBB
+    color: FFFFFF
 
 # true: only the person who died and people with axgraves.admin can open the grave
 # false: everyone can open the grave
@@ -148,17 +167,30 @@ death-listener-priority: HIGHEST
 
 # settings for holograms displays
 holograms:
-  # set to 00000000 to make it invisible
-  # format (hexadecimal): AARRGGBB
-  background-color: 00000000
-  # list: left, right, center
-  alignment: center
-  # list: fixed, vertical, horizontal, center
-  billboard: vertical
-  # should blocks/entities be visible behind the displays?
-  see-through: false
+  # "transparent", "default" (vanilla dark box) or a hex ARGB color like "#80000000"
+  background: transparent
   # should text have an outline?
   shadow: true
+  # should blocks/entities be visible behind the displays?
+  see-through: false
+  # size multiplier of the text
+  scale: 1.0
+  # offset of the hologram from the grave (in blocks)
+  offset:
+    x: 0.0
+    y: 1.6
+    z: 0.0
+  # NORTH | EAST | SOUTH | WEST: the side the text's front (the readable side, with billboard-type: FIXED) points to
+  facing: NORTH
+  # list: FIXED, CENTER, HORIZONTAL, VERTICAL
+  billboard-type: CENTER
+  # list: LEFT, CENTER, RIGHT
+  alignment: CENTER
+  # the distance, in blocks, from which players can see the hologram
+  visibility-distance: 10
+  # how often the hologram text gets refreshed (for example the despawn timer)
+  # 20 ticks = 1 second
+  update-interval-ticks: 20
 
 # should be plugin notify you if there is a new update?
 update-notifier:
@@ -172,4 +204,4 @@ update-notifier:
 debug: false
 
 # do not edit
-version: 19
+version: 21

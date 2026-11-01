@@ -32,6 +32,7 @@ public enum Reload {
         }
 
         EXECUTOR.execute(() -> {
+            AxGraves.updateHologramTicker();
             for (Grave grave : SpawnedGraves.getGraves()) {
                 grave.update();
                 grave.updateHologram();

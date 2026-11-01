@@ -2,6 +2,7 @@ package com.artillexstudios.axgraves;
 
 import com.artillexstudios.axapi.AxPlugin;
 import com.artillexstudios.axapi.config.Config;
+import com.artillexstudios.axapi.hologram.Holograms;
 import com.artillexstudios.axapi.libs.boostedyaml.dvs.versioning.BasicVersioning;
 import com.artillexstudios.axapi.libs.boostedyaml.settings.dumper.DumperSettings;
 import com.artillexstudios.axapi.libs.boostedyaml.settings.general.GeneralSettings;
@@ -17,9 +18,11 @@ import com.artillexstudios.axgraves.grave.Grave;
 import com.artillexstudios.axgraves.grave.GravePlaceholders;
 import com.artillexstudios.axgraves.grave.SpawnedGraves;
 import com.artillexstudios.axgraves.listeners.DeathListener;
+import com.artillexstudios.axgraves.listeners.ModelEngineInteractListener;
 import com.artillexstudios.axgraves.listeners.PlayerInteractListener;
 import com.artillexstudios.axgraves.schedulers.SaveGraves;
 import com.artillexstudios.axgraves.schedulers.TickGraves;
+import com.artillexstudios.axgraves.utils.ModelEngineHook;
 import com.artillexstudios.axgraves.utils.UpdateNotifier;
 import org.bstats.bukkit.Metrics;
 
@@ -61,6 +64,15 @@ public final class AxGraves extends AxPlugin {
         }
     }
 
+    // axapi starts the hologram ticker before the config is loaded, so it has to be restarted to use the configured interval
+    public static void updateHologramTicker() {
+        long ticks = Math.max(1, CONFIG.getInt("holograms.update-interval-ticks", 20));
+        if (FeatureFlags.HOLOGRAM_UPDATE_TICKS.get() == ticks) return;
+
+        FeatureFlags.HOLOGRAM_UPDATE_TICKS.set(ticks);
+        Holograms.startTicking();
+    }
+
     public void enable() {
         instance = this;
 
@@ -72,8 +84,13 @@ public final class AxGraves extends AxPlugin {
         debugMode = CONFIG.getBoolean("debug", false);
         MESSAGEUTILS = new MessageUtils(LANG.getBackingDocument(), "prefix", CONFIG.getBackingDocument());
 
+        updateHologramTicker();
+
         new DeathListener();
         getServer().getPluginManager().registerEvents(new PlayerInteractListener(), this);
+        if (getServer().getPluginManager().isPluginEnabled("ModelEngine")) {
+            getServer().getPluginManager().registerEvents(new ModelEngineInteractListener(), this);
+        }
 
         CommandManager.load();
         GravePlaceholders.register();
@@ -102,6 +119,7 @@ public final class AxGraves extends AxPlugin {
             if (!CONFIG.getBoolean("save-graves.enabled", true)) grave.remove();
             if (grave.getEntity() != null) grave.getEntity().remove();
             if (grave.getHologram() != null) grave.getHologram().remove();
+            ModelEngineHook.remove(grave.getModelEngineAnchor());
         }
 
         if (CONFIG.getBoolean("save-graves.enabled", true)) {

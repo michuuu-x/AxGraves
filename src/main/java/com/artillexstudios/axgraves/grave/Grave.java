@@ -15,12 +15,15 @@ import com.artillexstudios.axapi.packetentity.meta.entity.TextDisplayMeta;
 import com.artillexstudios.axapi.scheduler.Scheduler;
 import com.artillexstudios.axapi.utils.EquipmentSlot;
 import com.artillexstudios.axapi.utils.StringUtils;
+import com.artillexstudios.axapi.utils.Vector3f;
 import com.artillexstudios.axgraves.api.events.GraveInteractEvent;
 import com.artillexstudios.axgraves.api.events.GraveOpenEvent;
 import com.artillexstudios.axgraves.utils.BlacklistUtils;
 import com.artillexstudios.axgraves.utils.ExperienceUtils;
+import com.artillexstudios.axgraves.utils.HologramUtils;
 import com.artillexstudios.axgraves.utils.InventoryUtils;
 import com.artillexstudios.axgraves.utils.LocationUtils;
+import com.artillexstudios.axgraves.utils.ModelEngineHook;
 import com.artillexstudios.axgraves.utils.Utils;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -32,6 +35,7 @@ import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -57,6 +61,7 @@ public class Grave {
     private final Inventory gui;
     private int storedXP;
     private final PacketEntity entity;
+    private final TextDisplay modelEngineAnchor;
     private Hologram hologram;
     private String texture;
     private boolean removed = false;
@@ -95,13 +100,18 @@ public class Grave {
         }
         items.forEach(gui::addItem);
 
+        boolean modelEngineEnabled = ModelEngineHook.isAvailable();
+        this.modelEngineAnchor = modelEngineEnabled ? ModelEngineHook.spawn(location) : null;
+
         Location cloned = location.clone();
         cloned.add(0, 1 + CONFIG.getFloat("head-height", -1.2f), 0);
         this.entity = NMSHandlers.getNmsHandler().createEntity(EntityType.ARMOR_STAND, cloned);
 
-        WrappedItemStack wrapped = Utils.getPlayerHead(texture);
         this.texture = texture;
-        entity.setItem(EquipmentSlot.HELMET, wrapped);
+        if (modelEngineAnchor == null || !CONFIG.getBoolean("model-engine.hide-vanilla-head", true)) {
+            WrappedItemStack wrapped = Utils.getPlayerHead(texture);
+            entity.setItem(EquipmentSlot.HELMET, wrapped);
+        }
 
         if (entity.meta() instanceof ArmorStandMeta meta) {
             meta.small(true);
@@ -227,29 +237,39 @@ public class Grave {
 
         List<String> lines = LANG.getStringList("hologram");
 
-        double hologramHeight = CONFIG.getFloat("hologram-height", 0.75f) + 1;
-        hologram = new Hologram(location.clone().add(0, getNewHeight(hologramHeight, lines.size(), 0.3f), 0));
+        Section section = CONFIG.getSection("holograms");
+
+        Location hologramLocation = location.clone().add(
+                section.getFloat("offset.x", 0f),
+                section.getFloat("offset.y", 1.6f),
+                section.getFloat("offset.z", 0f)
+        );
+        hologramLocation.setYaw(HologramUtils.getYaw(section.getString("facing", "NORTH")));
+        hologramLocation.setPitch(0f);
+        hologram = new Hologram(hologramLocation);
 
         HologramPage<String, HologramType<String>> page = hologram.createPage(HologramTypes.TEXT);
         page.getParameters().withParameter(Grave.class, this);
 
-        Section section = CONFIG.getSection("holograms");
+        float scale = section.getFloat("scale", 1f);
+        int visibilityDistance = section.getInt("visibility-distance", 10);
+        HologramUtils.setViewDistance(page, visibilityDistance);
+
         page.setEntityMetaHandler(m -> {
             TextDisplayMeta meta = (TextDisplayMeta) m;
             meta.seeThrough(section.getBoolean("see-through"));
             meta.shadow(section.getBoolean("shadow", true));
             meta.alignment(TextDisplayMeta.Alignment.valueOf(section.getString("alignment").toUpperCase()));
-            meta.backgroundColor(Integer.parseInt(section.getString("background-color"), 16));
+            HologramUtils.applyBackground(meta, section.getString("background", "transparent"));
             meta.lineWidth(1000);
-            meta.billboardConstrain(DisplayMeta.BillboardConstrain.valueOf(section.getString("billboard").toUpperCase()));
+            meta.billboardConstrain(DisplayMeta.BillboardConstrain.valueOf(section.getString("billboard-type").toUpperCase()));
+            meta.scale(new Vector3f(scale, scale, scale));
+            // the client takes the view range as a fraction of 64 blocks
+            meta.viewRange(visibilityDistance / 64f);
         });
 
         page.setContent(String.join("&r<br>", lines));
         page.spawn();
-    }
-
-    private static double getNewHeight(double y, int lines, float lineHeight) {
-        return y - lineHeight * (lines - 1) + 0.25;
     }
 
     public int countItems() {
@@ -271,6 +291,7 @@ public class Grave {
 
             if (entity != null) entity.remove();
             if (hologram != null) hologram.remove();
+            ModelEngineHook.remove(modelEngineAnchor);
         };
 
         if (Scheduler.get().isOwnedByCurrentRegion(location)) runnable.run();
@@ -329,6 +350,10 @@ public class Grave {
 
     public PacketEntity getEntity() {
         return entity;
+    }
+
+    public TextDisplay getModelEngineAnchor() {
+        return modelEngineAnchor;
     }
 
     public String getTexture() {

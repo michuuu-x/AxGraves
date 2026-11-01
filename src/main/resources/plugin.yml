@@ -4,6 +4,9 @@ main: com.artillexstudios.axgraves.AxGraves
 api-version: '1.20'
 folia-supported: true
 
+softdepend:
+  - ModelEngine
+
 permissions:
   axgraves.help:
     default: true
